@@ -12,6 +12,7 @@ import {
   ensureConfiguredContainer,
   keepaliveBackoffMs,
   type ManagedContainer,
+  quarantineBlockedContainer,
   RUNTIME_REVISION_LABEL,
 } from '../src/lifecycle';
 
@@ -24,7 +25,7 @@ const WAHA_API_KEY = 'w'.repeat(48);
 function createEnv(overrides: Partial<GatewayEnv> = {}): GatewayEnv {
   return {
     ADMIN_TOKEN: ADMIN_TOKEN,
-    WAHA_CONFIG_REVISION: 'gows-postgresql-v1',
+    WAHA_CONFIG_REVISION: 'gows-postgresql-verified-v2',
     WAHA_DASHBOARD_PREVIEW_ENABLED: 'false',
     WAHA_DASHBOARD_ACCESS_USERNAME: 'previewadmin',
     WAHA_DASHBOARD_ACCESS_PASSWORD: 'p'.repeat(48),
@@ -34,8 +35,9 @@ function createEnv(overrides: Partial<GatewayEnv> = {}): GatewayEnv {
     WAHA_PUBLIC_BASE_URL: 'https://indexes-waha.helalalfqih.workers.dev',
     WAHA_QR_ENABLED: 'false',
     WAHA_QR_TOKEN: QR_TOKEN,
+    WAHA_WEBHOOK_ALLOWED_ORIGINS: 'https://webhook.invalid',
     WHATSAPP_SESSIONS_POSTGRESQL_URL:
-      'postgresql://waha:password@db.example.test:5432/waha?sslmode=require',
+      'postgresql://waha:password@db.example.test:5432/waha?sslmode=verify-full',
     ...overrides,
   };
 }
@@ -190,6 +192,12 @@ describe('gateway policy', () => {
 
   it.each([
     {
+      name: 'the pinned image security gate is blocked',
+      override: {
+        WAHA_CONFIG_REVISION: 'blocked-insecure-upstream-v1',
+      },
+    },
+    {
       name: 'PostgreSQL TLS is missing',
       override: {
         WHATSAPP_SESSIONS_POSTGRESQL_URL:
@@ -204,10 +212,17 @@ describe('gateway policy', () => {
       },
     },
     {
-      name: 'PostgreSQL verify-full is misleading in the upstream image',
+      name: 'PostgreSQL require does not declare verified TLS',
       override: {
         WHATSAPP_SESSIONS_POSTGRESQL_URL:
-          'postgresql://waha:password@db.example.test:5432/waha?sslmode=verify-full',
+          'postgresql://waha:password@db.example.test:5432/waha?sslmode=require',
+      },
+    },
+    {
+      name: 'PostgreSQL sslmode is ambiguous',
+      override: {
+        WHATSAPP_SESSIONS_POSTGRESQL_URL:
+          'postgresql://waha:password@db.example.test:5432/waha?sslmode=verify-full&sslmode=disable',
       },
     },
     {
@@ -241,6 +256,19 @@ describe('gateway policy', () => {
     {
       name: 'the public base URL is malformed',
       override: { WAHA_PUBLIC_BASE_URL: 'not-a-url' },
+    },
+    {
+      name: 'the webhook allowlist is not HTTPS',
+      override: {
+        WAHA_WEBHOOK_ALLOWED_ORIGINS: 'http://webhook.example.test',
+      },
+    },
+    {
+      name: 'the webhook allowlist includes a path',
+      override: {
+        WAHA_WEBHOOK_ALLOWED_ORIGINS:
+          'https://webhook.example.test/events',
+      },
     },
   ])('fails closed when $name', async ({ override }) => {
     const forwarder = vi.fn<ContainerForwarder>();
@@ -361,6 +389,9 @@ describe('WAHA runtime environment', () => {
     expect(environment.WAHA_BASE_URL).toBe(
       'https://indexes-waha.helalalfqih.workers.dev',
     );
+    expect(environment.WAHA_WEBHOOK_ALLOWED_ORIGINS).toBe(
+      'https://webhook.invalid',
+    );
     expect(environment.WHATSAPP_API_HOSTNAME).toBe('0.0.0.0');
     expect(environment.WAHA_WORKER_RESTART_SESSIONS).toBe('True');
     expect(CONTAINER_NAME).toBe('default');
@@ -416,6 +447,39 @@ describe('Container lifecycle', () => {
     );
   });
 
+  it.each(['blocked-insecure-upstream-v1', 'Blocked-insecure-upstream-v1'])(
+    'destroys a running Container and never starts blocked revision %s',
+    async (revision) => {
+      const container = createContainer(true, 'old-runtime');
+
+      await expect(
+        ensureConfiguredContainer(
+          container,
+          createEnv({ WAHA_CONFIG_REVISION: revision }),
+          60_000,
+        ),
+      ).rejects.toThrow('WAHA runtime revision is blocked');
+      expect(container.destroy).toHaveBeenCalledOnce();
+      expect(container.inspect).not.toHaveBeenCalled();
+      expect(container.start).not.toHaveBeenCalled();
+      expect(container.setInactivityTimeout).not.toHaveBeenCalled();
+    },
+  );
+
+  it('quarantines a blocked running Container before keepalive backoff', async () => {
+    const container = createContainer(true, 'old-runtime');
+
+    await expect(
+      quarantineBlockedContainer(
+        container,
+        createEnv({ WAHA_CONFIG_REVISION: 'BLOCKED-old-runtime' }),
+      ),
+    ).resolves.toBe(true);
+    expect(container.destroy).toHaveBeenCalledOnce();
+    expect(container.inspect).not.toHaveBeenCalled();
+    expect(container.start).not.toHaveBeenCalled();
+  });
+
   it('starts a stopped Container with the fail-closed environment', async () => {
     const container = createContainer(false);
 
@@ -428,7 +492,7 @@ describe('Container lifecycle', () => {
         env: expect.objectContaining({
           WHATSAPP_DEFAULT_ENGINE: 'GOWS',
           WHATSAPP_SESSIONS_POSTGRESQL_URL: expect.stringContaining(
-            'sslmode=require',
+            'sslmode=verify-full',
           ),
         }),
       }),
@@ -443,12 +507,19 @@ describe('Container lifecycle', () => {
     const changedPublicUrl = await computeRuntimeFingerprint(
       createEnv({ WAHA_PUBLIC_BASE_URL: 'https://preview.example.test' }),
     );
+    const changedWebhookOrigin = await computeRuntimeFingerprint(
+      createEnv({
+        WAHA_WEBHOOK_ALLOWED_ORIGINS: 'https://hooks.example.test',
+      }),
+    );
 
     expect(original).toMatch(/^[a-f0-9]{64}$/);
     expect(changedSecret).toMatch(/^[a-f0-9]{64}$/);
     expect(changedSecret).not.toBe(original);
     expect(changedPublicUrl).toMatch(/^[a-f0-9]{64}$/);
     expect(changedPublicUrl).not.toBe(original);
+    expect(changedWebhookOrigin).toMatch(/^[a-f0-9]{64}$/);
+    expect(changedWebhookOrigin).not.toBe(original);
   });
 
   it('keeps the runtime label name within the Cloudflare limit', () => {

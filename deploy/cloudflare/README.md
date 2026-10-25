@@ -16,11 +16,28 @@ reviewed deployment. It does not deploy anything by itself.
 The pinned manifest was checked directly in Docker Hub and is `linux/amd64`,
 which is the architecture Cloudflare Containers requires.
 
-This configuration runs the pinned upstream image; it does not build the WAHA
-application source in this fork. The files in this directory add the Cloudflare
-gateway and deployment configuration only. If a future change modifies WAHA
-itself, build and review a separate image, pin its digest here, and repeat the
-runtime acceptance test before rollout.
+The current live configuration runs the pinned upstream image; it does not
+build the WAHA application source in this fork. This branch now contains a
+candidate WAHA source fix for PostgreSQL and webhook transport validation, but
+that code is not present in the running image. Applying the fix requires a
+separately approved custom image built from an exact fork commit, review of its
+SBOM, and an immutable image digest pinned here. Repeat the runtime acceptance
+test before any rollout.
+
+The checked-in `WAHA_CONFIG_REVISION` begins with `blocked-`. The gateway
+rejects such a revision before resolving or starting the Container, so this
+tree cannot accidentally present the pinned upstream image as transport-safe.
+The scheduled lifecycle path also destroys an already-running Container when
+it observes a blocked revision, before honoring any saved keepalive backoff and
+without starting a replacement. That cleanup is not instantaneous: a deployment
+alone does not prove the old instance has stopped, and the instance can continue
+autonomous database, WhatsApp, or webhook traffic until the next scheduled path
+runs. Treat a blocked-revision rollout as intentionally disruptive and require
+a separately approved stop plus a read-only confirmation that no instance is
+running before calling it quarantined.
+After a reviewed secure image digest is pinned, assign a new non-blocked
+revision in the same reviewed change. That revision bump is mandatory so a
+running Container created from an older image cannot be reused by fingerprint.
 
 The current endpoint returned Cloudflare `403 / 1010` to an unauthenticated
 probe. That confirms an edge block, not WAHA readiness. No WhatsApp session,
@@ -56,13 +73,26 @@ credentials must all be different. `WAHA_API_KEY` must be the plaintext
 high-entropy key used in the request header, not a `sha512:` value; the WAHA
 entrypoint replaces it with a SHA-512 digest before Node starts.
 
-The PostgreSQL URL must include `sslmode=require`; an unencrypted DSN fails
-closed. The pinned upstream WAHA parser nevertheless sets
-`rejectUnauthorized: false` for every enabled SSL mode, so it encrypts the
-connection but does not authenticate the database certificate or hostname.
-Even `verify-ca` and `verify-full` do not change that behavior in this image and
-are rejected here to avoid a false assurance. Full certificate verification
-requires a reviewed upstream fix or custom WAHA image.
+The checked-in PostgreSQL URL must include `sslmode=verify-full`; plaintext,
+duplicate modes, and the weaker `sslmode=require` fail closed. The candidate
+source fix maps every enabled TLS mode to Node certificate and hostname
+verification and serializes the GOWS database URL explicitly as `verify-full`.
+The pinned upstream image does not contain that change: its parser sets
+`rejectUnauthorized: false` for every enabled SSL mode. Do not deploy the
+checked-in configuration against that image or treat the source patch as
+runtime evidence. A custom image still needs wrong-CA and wrong-hostname
+integration tests before Preview.
+
+Webhook delivery is also fail-closed in the candidate source. It defaults to
+public HTTPS destinations, validates literal and connection-time DNS addresses,
+rejects private and reserved ranges, disables redirects and ambient proxies,
+and keeps normal TLS certificate and hostname verification. A server-owned
+exact private-origin exception exists only for controlled local testing. The
+Cloudflare configuration sets `WAHA_WEBHOOK_ALLOWED_ORIGINS` to
+`https://webhook.invalid`, a reserved placeholder that intentionally permits no
+real receiver. Replace it only with the exact approved user-owned HTTPS origin
+in an isolated Preview; it is not a secret and it must not be broadened to an
+HTTP, wildcard, or private destination.
 
 The Container uses GOWS and PostgreSQL session storage. GOWS writes live auth
 state to PostgreSQL; WEBJS and WPP remote auth use periodic snapshots and can
@@ -158,10 +188,11 @@ The `pretypecheck` hook generates the ignored `worker-configuration.d.ts` from
 `wrangler.jsonc`; `npm run cf:types` then verifies that it is current.
 
 `wrangler@4.152.0` currently reaches `undici@7.29.1` through Miniflare. The
-package override resolves it to `7.30.1`, the patched 7.x release for the three
-October 2026 advisories. This is development tooling and is not bundled into the
-deployed Worker, but the override keeps clean installs and `npm audit` clean.
-Re-test before removing it when Wrangler's dependency graph advances.
+package override resolves it to `7.30.1`, which is outside the affected 7.x
+range for `GHSA-4qv8-2p9j-2685`. This is development tooling and is not bundled
+into the deployed Worker. The root WAHA manifest and Yarn lock also raise their
+direct `undici` floor and resolution to `7.30.1`; re-run the complete immutable
+root install before treating that source graph as release evidence.
 
 The current acceptance status and the approval gates for any isolated live test
 are tracked in [ACCEPTANCE.md](./ACCEPTANCE.md).
@@ -185,15 +216,20 @@ Do not run `wrangler deploy` until all of these have explicit approval:
    values in the connector response. No value was copied or used, and this is
    not evidence that an unauthorized party accessed them; rotation is a
    precaution because the values appeared in tool output.
-4. Verify the PostgreSQL provider supports encrypted TLS, outbound Cloudflare
-   access, enough connections, and `CREATE DATABASE`. Include
-   `sslmode=require`; WAHA creates a main database and a database per session.
+4. Verify the PostgreSQL provider supports authenticated TLS, outbound
+   Cloudflare access, enough connections, and `CREATE DATABASE`. Include
+   `sslmode=verify-full`, provision the required trusted CA without weakening
+   verification, and prove both wrong-CA and wrong-hostname failures. WAHA
+   creates a main database and a database per session.
 5. Resolve database and webhook TLS validation before any Preview or production
-   rollout. Use a future upstream image that validates CA and hostname for both
-   clients, or build and review a custom image with those fixes and pin its
-   digest. The image must also reject HTTP/private webhook destinations unless
-   they match an explicit user-owned HTTPS allowlist. Do not use the current
-   encrypted-but-unverified behavior as the deployment default.
+   rollout. The fork contains a source-level candidate, but the live upstream
+   image does not. Use a future upstream image with equivalent protections, or
+   obtain separate approval to build `linux/amd64` from the reviewed fork
+   commit, generate and review an SBOM, pin the immutable digest, and run the
+   positive and negative transport tests. The image must reject HTTP/private
+   webhook destinations unless an exact server-owned test exception was
+   deliberately configured. Do not use the current encrypted-but-unverified
+   behavior as the deployment default.
 6. During the approved rollout window, stage distinct `ADMIN_TOKEN`, plaintext
    `WAHA_API_KEY`, `WAHA_QR_TOKEN`, `WAHA_DISABLED_DASHBOARD_PASSWORD`,
    `WAHA_DISABLED_SWAGGER_PASSWORD`, and

@@ -5,6 +5,13 @@ import {
 } from '@waha/structures/webhooks.config.dto';
 import { LoggerBuilder } from '@waha/utils/logging';
 import { VERSION } from '@waha/version';
+import {
+  createWebhookLookup,
+  isWebhookDestinationError,
+  readWebhookDestinationPolicy,
+  validateWebhookDestination,
+  webhookUrlForLog,
+} from '@waha/modules/waha-webhook/WebhookUrlPolicy';
 import axios, { AxiosInstance } from 'axios';
 import axiosRetry, { retryAfter } from 'axios-retry';
 import * as crypto from 'crypto';
@@ -41,14 +48,14 @@ export function exponentialDelay(delayFactor: number) {
 }
 
 export class WebhookSender {
-  protected static AGENTS = {
-    http: new HttpAgent({}),
-    https: new HttpsAgent({ rejectUnauthorized: false }),
-  };
-
   protected url: string;
+  protected urlForLog: string;
   protected logger: Logger;
   protected readonly config: WebhookConfig;
+  protected readonly agents: {
+    http: any;
+    https: any;
+  };
 
   protected axios: AxiosInstance;
 
@@ -56,9 +63,22 @@ export class WebhookSender {
     loggerBuilder: LoggerBuilder,
     protected webhookConfig: WebhookConfig,
   ) {
-    this.url = webhookConfig.url;
+    const destination = validateWebhookDestination(
+      webhookConfig.url,
+      readWebhookDestinationPolicy(),
+    );
+    this.url = destination.url.toString();
+    this.urlForLog = webhookUrlForLog(this.url);
     this.logger = loggerBuilder.child({ name: WebhookSender.name });
     this.config = webhookConfig;
+    const lookup = createWebhookLookup(destination.allowNonPublicAddress);
+    this.agents = {
+      http: new HttpAgent({ lookup: lookup }),
+      https: new HttpsAgent({
+        lookup: lookup,
+        rejectUnauthorized: true,
+      }),
+    };
     this.axios = this.buildAxiosInstance();
   }
 
@@ -73,7 +93,7 @@ export class WebhookSender {
       id: headers['X-Webhook-Request-Id'],
       ['event.id']: json.id,
       event: json.event,
-      url: this.url,
+      url: this.urlForLog,
     };
     this.logger.info(ctx, `Sending POST...`);
     this.logger.debug(ctx, `POST DATA`);
@@ -88,7 +108,7 @@ export class WebhookSender {
         this.logger.debug(
           {
             ...ctx,
-            body: response.data,
+            status: response.status,
           },
           `Response`,
         );
@@ -97,8 +117,9 @@ export class WebhookSender {
         this.logger.error(
           {
             ...ctx,
+            code: error.code,
             error: error.message,
-            data: error.response?.data,
+            status: error.response?.status,
           },
           `POST request failed: ${error.message}`,
         );
@@ -113,6 +134,9 @@ export class WebhookSender {
       'User-Agent': `WAHA/${VERSION.version}`,
     };
     customHeaders.forEach((header) => {
+      if (header.name.toLowerCase() === 'host') {
+        throw new Error('A custom Host webhook header is not allowed');
+      }
       headers[header.name] = header.value;
     });
 
@@ -126,13 +150,15 @@ export class WebhookSender {
 
     const instance = axios.create({
       headers: headers,
-      httpAgent: WebhookSender.AGENTS.http,
-      httpsAgent: WebhookSender.AGENTS.https,
+      httpAgent: this.agents.http,
+      httpsAgent: this.agents.https,
+      maxRedirects: 0,
+      proxy: false,
     });
     axiosRetry(instance, {
       retries: attempts,
       retryDelay: retryDelay,
-      retryCondition: (error) => true,
+      retryCondition: (error) => !isWebhookDestinationError(error),
       onRetry: (retryCount, error, requestConfig) => {
         this.logger.warn(
           {

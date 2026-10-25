@@ -10,6 +10,7 @@ import {
 import {
   ensureConfiguredContainer,
   keepaliveBackoffMs,
+  quarantineBlockedContainer,
 } from './lifecycle';
 import { type RouteKind } from './policy';
 
@@ -90,6 +91,13 @@ export class WahaContainer extends DurableObject<Env> {
   }
 
   private async runKeepalive(): Promise<Response> {
+    const container = this.getContainer();
+    if (await quarantineBlockedContainer(container, this.env)) {
+      await this.ctx.storage.delete(KEEPALIVE_FAILURES_KEY);
+      await this.ctx.storage.delete(KEEPALIVE_RETRY_AT_KEY);
+      return jsonResponse(503, 'not_ready');
+    }
+
     const now = Date.now();
     const retryAt =
       (await this.ctx.storage.get<number>(KEEPALIVE_RETRY_AT_KEY)) ?? 0;

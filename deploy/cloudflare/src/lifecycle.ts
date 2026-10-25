@@ -1,5 +1,6 @@
 import {
   buildContainerEnvironment,
+  isBlockedRuntimeRevision,
   type GatewayEnv,
 } from './gateway';
 
@@ -25,11 +26,28 @@ export interface ManagedContainer {
   start(options: ContainerStartOptionsLike): void;
 }
 
+export async function quarantineBlockedContainer(
+  container: ManagedContainer,
+  env: GatewayEnv,
+): Promise<boolean> {
+  if (!isBlockedRuntimeRevision(env.WAHA_CONFIG_REVISION)) {
+    return false;
+  }
+  if (container.running) {
+    await container.destroy();
+  }
+  return true;
+}
+
 export async function ensureConfiguredContainer(
   container: ManagedContainer,
   env: GatewayEnv,
   inactivityTimeoutMs: number,
 ): Promise<'replaced' | 'reused' | 'started'> {
+  if (await quarantineBlockedContainer(container, env)) {
+    throw new Error('WAHA runtime revision is blocked');
+  }
+
   const containerEnvironment = buildContainerEnvironment(env);
   const runtimeFingerprint = await computeRuntimeFingerprint(env);
   let outcome: 'replaced' | 'reused' | 'started' = 'started';
@@ -76,6 +94,7 @@ export async function computeRuntimeFingerprint(
     env.WAHA_DISABLED_DASHBOARD_PASSWORD,
     env.WAHA_DISABLED_SWAGGER_PASSWORD,
     env.WAHA_PUBLIC_BASE_URL,
+    env.WAHA_WEBHOOK_ALLOWED_ORIGINS,
     env.WHATSAPP_SESSIONS_POSTGRESQL_URL,
   ].join('\u0000');
   const signature = await crypto.subtle.sign(

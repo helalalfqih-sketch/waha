@@ -21,19 +21,33 @@ export function parsePsql(url: string): PsqlConnectionConfig {
   const password = urlObj.password;
   const database = urlObj.pathname.split('/')[1];
 
-  // sslmode=disable
-  const ssl =
-    urlObj.searchParams.get('sslmode') !== 'disable'
-      ? { rejectUnauthorized: false }
-      : false;
+  const sslModes = urlObj.searchParams.getAll('sslmode');
+  if (sslModes.length > 1) {
+    throw new Error('PostgreSQL URL must contain at most one sslmode');
+  }
+  const sslMode = sslModes[0]?.toLowerCase();
+  const supportedSslModes = [
+    'allow',
+    'disable',
+    'no-verify',
+    'prefer',
+    'require',
+    'verify-ca',
+    'verify-full',
+  ];
+  if (sslMode && !supportedSslModes.includes(sslMode)) {
+    throw new Error('PostgreSQL URL contains an unsupported sslmode');
+  }
+
+  const ssl = sslMode === 'disable' ? false : { rejectUnauthorized: true };
 
   return {
-    host,
-    port,
-    user,
-    password,
-    database,
-    ssl,
+    host: host,
+    port: port,
+    user: user,
+    password: password,
+    database: database,
+    ssl: ssl,
   };
 }
 
@@ -56,6 +70,8 @@ export function stringifyPsql(config: PsqlConnectionConfig): string {
   );
   if (!config.ssl) {
     url.searchParams.set('sslmode', 'disable');
+  } else {
+    url.searchParams.set('sslmode', 'verify-full');
   }
   return url.toString();
 }

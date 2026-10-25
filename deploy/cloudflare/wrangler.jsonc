@@ -34,11 +34,12 @@
     "crons": ["*/5 * * * *"]
   },
   "vars": {
-    "WAHA_CONFIG_REVISION": "gows-postgresql-v1",
+    "WAHA_CONFIG_REVISION": "blocked-insecure-upstream-v1",
     "WAHA_PUBLIC_BASE_URL": "https://indexes-waha.helalalfqih.workers.dev",
     "WAHA_QR_ENABLED": "false",
     "WAHA_DASHBOARD_PREVIEW_ENABLED": "false",
-    "WAHA_DASHBOARD_ACCESS_USERNAME": "previewadmin"
+    "WAHA_DASHBOARD_ACCESS_USERNAME": "previewadmin",
+    "WAHA_WEBHOOK_ALLOWED_ORIGINS": "https://webhook.invalid"
   },
   "secrets": {
     "required": [

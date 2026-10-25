@@ -25,10 +25,15 @@ export interface GatewayEnv {
   WAHA_PUBLIC_BASE_URL: string;
   WAHA_QR_ENABLED: string;
   WAHA_QR_TOKEN: string;
+  WAHA_WEBHOOK_ALLOWED_ORIGINS: string;
   WHATSAPP_SESSIONS_POSTGRESQL_URL: string;
 }
 
 export type ContainerForwarder = (request: Request) => Promise<Response>;
+
+export function isBlockedRuntimeRevision(value: string): boolean {
+  return value.toLowerCase().startsWith('blocked-');
+}
 
 export async function handleRequest(
   request: Request,
@@ -131,6 +136,7 @@ export function buildContainerEnvironment(
     WAHA_LOG_FORMAT: 'JSON',
     WAHA_LOG_LEVEL: 'warn',
     WAHA_PRINT_QR: 'False',
+    WAHA_WEBHOOK_ALLOWED_ORIGINS: env.WAHA_WEBHOOK_ALLOWED_ORIGINS,
     WAHA_WORKER_ID: CONTAINER_NAME,
     WAHA_WORKER_RESTART_SESSIONS: 'True',
     WHATSAPP_API_HOSTNAME: '0.0.0.0',
@@ -179,7 +185,10 @@ function isValidRuntimeConfig(env: GatewayEnv): boolean {
   ) {
     return false;
   }
-  if (!/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(env.WAHA_CONFIG_REVISION)) {
+  if (
+    !/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(env.WAHA_CONFIG_REVISION) ||
+    isBlockedRuntimeRevision(env.WAHA_CONFIG_REVISION)
+  ) {
     return false;
   }
   if (env.WAHA_DASHBOARD_PREVIEW_ENABLED !== 'true' && env.WAHA_DASHBOARD_PREVIEW_ENABLED !== 'false') {
@@ -194,16 +203,21 @@ function isValidRuntimeConfig(env: GatewayEnv): boolean {
   if (!isValidPublicBaseUrl(env.WAHA_PUBLIC_BASE_URL)) {
     return false;
   }
+  if (!isValidPublicBaseUrl(env.WAHA_WEBHOOK_ALLOWED_ORIGINS)) {
+    return false;
+  }
   try {
     const url = new URL(env.WHATSAPP_SESSIONS_POSTGRESQL_URL);
-    const sslMode = url.searchParams.get('sslmode')?.toLowerCase();
+    const sslModes = url.searchParams.getAll('sslmode');
+    const sslMode = sslModes[0]?.toLowerCase();
     return (
       (url.protocol === 'postgres:' || url.protocol === 'postgresql:') &&
       Boolean(url.hostname) &&
       Boolean(url.username) &&
       Boolean(url.password) &&
       url.pathname.length > 1 &&
-      sslMode === 'require'
+      sslModes.length === 1 &&
+      sslMode === 'verify-full'
     );
   } catch {
     return false;

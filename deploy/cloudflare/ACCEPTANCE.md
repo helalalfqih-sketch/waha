@@ -17,18 +17,18 @@ No live stage has run, and there is currently no `FAIL` result.
 
 | # | Stage | Status | Evidence or acceptance criterion |
 |---:|---|---|---|
-| 1 | Clean install | `PASS` | On 2026-10-25, `npm ci` completed in a separate copy with a fresh isolated npm cache. The installed graph resolved `undici@7.30.1`. |
-| 2 | Tests | `PASS` | `npm test`: 40/40 tests passed. `npm audit --audit-level=high`: zero findings. |
-| 3 | Local lifecycle tests | `PASS` | `npm run test:lifecycle`: 6/6 selected tests passed. They cover stopped start, matching-fingerprint reuse, stale-fingerprint replacement, secret/config-sensitive HMAC, the Container label limit, and bounded backoff. This is not a live Container lifecycle result. |
-| 4 | GitHub CI | `BLOCKED` | Draft PR #1 has no workflow runs or commit statuses. Existing workflows either publish images or do not run for this fork/PR. The inert least-privilege template is at `ci/cloudflare-containers-ci.yml.example`; enabling it is a separate Actions change. CI must pass before merge. |
-| 5 | Isolated Preview deploy | `BLOCKED` | The checked-in Wrangler config deliberately targets the existing `indexes-waha` service and must not be used as a Preview. A separately named Worker, Container app, Durable Object namespace, database, secrets, budget, and secure WAHA image require explicit approval. |
+| 1 | Clean install | `BLOCKED` | On 2026-10-25, `npm ci` for `deploy/cloudflare` completed in a separate copy with a fresh isolated npm cache and resolved `undici@7.30.1`. A root Yarn 4 immutable install was then attempted with fresh isolated cache/global directories and scripts disabled. It reached the Git-sourced `libsignal` package, whose Yarn Classic bootstrap downloads `https://classic.yarnpkg.com/latest.js`; that environment request returned `403`, so the root image-source install did not complete. This is an external bootstrap blocker, not a passing root install. |
+| 2 | Tests | `NOT RUN` | Independent validation on the rebased tree is green but does not satisfy the full stage after the blocked clean install: Cloudflare tests passed 52/52, lifecycle selection passed 9/9, typecheck and dry-run passed; the three focused WAHA suites passed 65/65 using an isolated minimal npm dependency set, with focused TypeScript, Prettier, and oxlint checks passing. Re-run the complete root suite from an immutable clean install before marking this stage `PASS`. |
+| 3 | Local lifecycle tests | `PASS` | `npm run test:lifecycle`: 9/9 selected tests passed. They cover stopped start, matching-fingerprint reuse, stale-fingerprint replacement, case-insensitive blocked-revision destruction without replacement before keepalive backoff, secret/config-sensitive HMAC, the Container label limit, and bounded backoff. This is not a live Container lifecycle result. |
+| 4 | GitHub CI | `NOT RUN` | The owner-authored `Cloudflare WAHA checks` workflow succeeded as run #12 on pre-security head `76c48d2`, including `npm ci`, tests, lifecycle tests, typecheck, generated types, audit, and diff check. The final security-patch head still requires its own successful run before this stage becomes `PASS`; the workflow covers `deploy/cloudflare`, not the complete root WAHA suite. |
+| 5 | Isolated Preview deploy | `BLOCKED` | The checked-in Wrangler config deliberately targets the existing `indexes-waha` service and must not be used as a Preview. Its case-insensitive `blocked-` runtime revision is a technical interlock that rejects Container-starting routes and makes the scheduled lifecycle destroy an already-running Container before any keepalive backoff, without starting a replacement. Cleanup still waits for scheduled activation, so a live rollout additionally requires an approved stop and read-only confirmation that no old instance remains. A separately named Worker, Container app, Durable Object namespace, database, secrets, budget, and secure WAHA image require explicit approval. The source-level security candidate has not been built into an image or tested at runtime. |
 | 6 | QR pairing | `BLOCKED` | Requires the approved Preview, a dedicated test phone, separately approved secret creation, and a time-limited version with `WAHA_QR_ENABLED=true`. QR material must never enter logs, issues, CI artifacts, or this repository. |
 | 7 | Chats | `NOT RUN` | Pass only for an agreed endpoint set and consenting test recipients, with send/receive/read evidence recorded as redacted request IDs and message-ID hashes. GOWS supports core list/read/edit/delete-message flows but not every chat operation. |
 | 8 | Media | `BLOCKED` | Define whether acceptance means send, receive metadata, downloaded bytes, or persistence. The gateway now pins an HTTPS `WAHA_BASE_URL`, so on-demand file URLs can point back through the Worker. Automatic event download remains disabled, and no persistent media storage is configured. |
 | 9 | Groups | `NOT RUN` | Use a Preview-only group with consenting members. Core GOWS group operations are supported, but unsupported/destructive operations are outside the initial test manifest. |
 | 10 | Channels | `BLOCKED` | GOWS channel support is partial. Search/list/create/get, text/image/video send, receive, follow/unfollow, and mute/unmute are candidates; delete, channel-history retrieval, polls, and admin invite operations must not be claimed. |
 | 11 | Status | `BLOCKED` | GOWS supports text/image/voice/video status APIs, delete, and message-ID generation. Execution still needs an approved test audience and non-sensitive assets; never publish to the production account's normal audience. |
-| 12 | Webhook | `BLOCKED` | Requires an HTTPS receiver owned by the user, a Preview-only HMAC secret, an exact destination allowlist, an explicit event list, redacted retention, and a retry test. The pinned image disables outbound certificate verification and accepts HTTP/private destinations, so it cannot run this stage. GOWS also lacks events such as `message.waiting` and `chat.archive`. |
+| 12 | Webhook | `BLOCKED` | Requires an HTTPS receiver owned by the user, a Preview-only HMAC secret, an exact destination allowlist, an explicit event list, redacted retention, and a retry test. The fork contains a fail-closed sender candidate, but the pinned live image still disables outbound certificate verification and accepts HTTP/private destinations. The configured `https://webhook.invalid` placeholder deliberately routes to no real receiver. GOWS also lacks events such as `message.waiting` and `chat.archive`. |
 | 13 | Restart | `NOT RUN` | Preview only. Pass when a controlled Container restart returns the same session without a new QR and chat plus webhook probes succeed again within the approved recovery objective. |
 | 14 | Secret rotation | `BLOCKED` | Requires approval at execution time. Stage a new Preview Worker version, verify old edge credentials fail and new credentials succeed, confirm the HMAC fingerprint replaces the Container once, and keep all values out of evidence. |
 | 15 | Persistent reconnect | `NOT RUN` | Pass only when the same GOWS session reconnects from the isolated PostgreSQL store without QR after restart and rotation, then receives a new message and emits the expected webhook. |
@@ -42,6 +42,14 @@ endpoint allowlist. Before Preview, approve a minimal manifest for the exact
 chat, media, group, channel, status, session, QR, and webhook operations to be
 tested, or implement and test a narrower route allowlist. Do not call this a
 full-WAHA gateway.
+
+The production-default gateway is also not proof of a working graphical WAHA
+Dashboard. The branch contains a disabled-by-default browser-authenticated
+Dashboard preview prototype, but its asset paths, API calls, WebSocket behavior,
+cookies, login flow, and Cloudflare Access boundary remain unverified. Keep
+`WAHA_DASHBOARD_PREVIEW_ENABLED=false` until a separately approved isolated
+Preview proves those dependencies; do not relax the live deny list as a
+shortcut.
 
 The proposed GOWS engine covers the core requested flows, but it is not feature
 equivalent to WEBJS. Important gaps include some chat archive/delete operations,
@@ -113,18 +121,38 @@ also disables TLS certificate verification, while webhook configuration accepts
 HTTP and private-network destinations without an allowlist. These are not
 acceptable Preview or production defaults.
 
-Prefer an upstream release that implements certificate validation. If an
-upstream fix is unavailable and a custom image is explicitly approved:
+This fork now contains a source-level candidate that maps enabled PostgreSQL
+TLS to certificate and hostname verification, emits `sslmode=verify-full` for
+GOWS, and enforces the webhook policy centrally at send time. The webhook
+policy requires public HTTPS by default, checks both literal and
+connection-time DNS addresses, rejects private/reserved destinations, disables
+redirects and ambient proxies, and retains normal TLS verification. The exact
+private-origin escape hatch is server-owned and intended only for controlled
+local tests. None of this code is active in `indexes-waha` while Cloudflare
+runs the pinned upstream image.
 
-1. Patch PostgreSQL and webhook clients to validate CA and hostname.
-2. Restrict webhook destinations to the exact user-owned HTTPS origin and
-   reject HTTP, private, loopback, link-local, and unapproved destinations.
-3. Build and review a `linux/amd64` image, produce an SBOM, and pin its immutable
-   digest in the Preview config.
-4. Prove valid database and webhook certificates succeed; wrong-CA and
+The checked-in `blocked-` revision makes the Worker reject runtime startup even
+if this configuration is deployed accidentally. Pinning a reviewed secure
+image and changing to a new non-blocked revision must be one reviewed change;
+the new revision forces replacement instead of reusing an older running image.
+
+Prefer an upstream release with equivalent protections. If a custom image is
+explicitly approved:
+
+1. Freeze the reviewed fork commit and complete its clean install, focused
+   tests, typecheck, security review, and least-privilege CI.
+2. Build only the documented `linux/amd64` target from that exact commit; do
+   not inject credentials into the image or build arguments.
+3. Produce and review an SBOM, scan the resulting image, publish it only to the
+   approved registry, and record its immutable digest.
+4. Pin that digest in the isolated Preview configuration. Do not replace the
+   live image as part of the build step.
+5. Prove valid database and webhook certificates succeed; wrong-CA and
    wrong-hostname connections fail; and HTTP/private webhook destinations plus
-   `sslmode=disable` are rejected.
-5. Repeat the full clean-install, CI, Preview, restart, and persistence matrix.
+   `sslmode=disable` are rejected. Verify that the allowlist admits only the
+   exact approved receiver rather than the fail-closed `.invalid` placeholder.
+6. Repeat the full CI, Preview, restart, rotation, and persistence matrix before
+   any production proposal.
 
 Cloudflare runs the image digest in `wrangler.jsonc`; it does not build or run
 WAHA application changes from this fork automatically.
