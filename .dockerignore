@@ -9,6 +9,7 @@ venv
 .wwebjs_auth
 docs
 examples
+apps/shopify-admin/
 .github
 .git
 .envs/*

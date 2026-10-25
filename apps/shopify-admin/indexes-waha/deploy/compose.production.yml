@@ -1,0 +1,62 @@
+services:
+  caddy:
+    image: "${CADDY_IMAGE:?Set a pinned Caddy image tag or digest}"
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      APP_DOMAIN: "${APP_DOMAIN:?Set the public app domain}"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - shopify-app
+
+  shopify-app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    expose:
+      - "3000"
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      SHOPIFY_API_KEY: "${SHOPIFY_API_KEY:?Set the Shopify client ID}"
+      SHOPIFY_API_SECRET: "${SHOPIFY_API_SECRET:?Set the Shopify client secret}"
+      SHOPIFY_APP_URL: "${SHOPIFY_APP_URL:?Set the public HTTPS app URL}"
+      SCOPES: "write_products,write_publications"
+      DATABASE_URL: "file:/data/shopify.sqlite"
+      SHOPIFY_ALLOWED_SHOP: "${SHOPIFY_ALLOWED_SHOP:?Set the allowed myshopify.com domain}"
+      WAHA_BASE_URL: "http://waha:3000"
+      WAHA_API_KEY: "${WAHA_API_KEY:?Set an independent WAHA API key}"
+      WAHA_SESSION_NAME: "${WAHA_SESSION_NAME:-default}"
+    volumes:
+      - shopify_data:/data
+    depends_on:
+      - waha
+
+  waha:
+    image: "${WAHA_IMAGE:?Set a pinned WAHA Core image tag or digest}"
+    restart: unless-stopped
+    expose:
+      - "3000"
+    environment:
+      WAHA_API_KEY: "${WAHA_API_KEY:?Set an independent WAHA API key}"
+      WAHA_DASHBOARD_ENABLED: "False"
+      WHATSAPP_SWAGGER_ENABLED: "False"
+      WAHA_PRINT_QR: "False"
+      WHATSAPP_DEFAULT_ENGINE: "${WHATSAPP_DEFAULT_ENGINE:-WEBJS}"
+    volumes:
+      - waha_sessions:/app/.sessions
+      - waha_media:/app/.media
+
+volumes:
+  caddy_data:
+  caddy_config:
+  shopify_data:
+  waha_sessions:
+  waha_media:
