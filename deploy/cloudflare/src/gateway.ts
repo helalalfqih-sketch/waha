@@ -16,6 +16,9 @@ export const CONTAINER_PORT = 3000;
 export interface GatewayEnv {
   ADMIN_TOKEN: string;
   WAHA_CONFIG_REVISION: string;
+  WAHA_DASHBOARD_PREVIEW_ENABLED: string;
+  WAHA_DASHBOARD_ACCESS_USERNAME: string;
+  WAHA_DASHBOARD_ACCESS_PASSWORD: string;
   WAHA_API_KEY: string;
   WAHA_DISABLED_DASHBOARD_PASSWORD: string;
   WAHA_DISABLED_SWAGGER_PASSWORD: string;
@@ -60,6 +63,23 @@ export async function handleRequest(
     });
   }
 
+  if (decision.kind === 'dashboard') {
+    if (env.WAHA_DASHBOARD_PREVIEW_ENABLED !== 'true') {
+      return jsonResponse(404, 'not_found');
+    }
+    const expected = 'Basic ' + btoa(
+      env.WAHA_DASHBOARD_ACCESS_USERNAME + ':' + env.WAHA_DASHBOARD_ACCESS_PASSWORD,
+    );
+    const allowed = await secureTokenEqual(
+      request.headers.get('authorization'), expected,
+    );
+    if (!allowed) {
+      return jsonResponse(401, 'unauthorized', {
+        'www-authenticate': 'Basic realm="WAHA Preview Dashboard", charset="UTF-8"',
+      });
+    }
+  }
+
   if (decision.kind === 'qr') {
     if (env.WAHA_QR_ENABLED !== 'true') {
       return jsonResponse(404, 'not_found');
@@ -67,6 +87,7 @@ export async function handleRequest(
     const qrAuthenticated = await secureTokenEqual(
       getQrToken(request),
       env.WAHA_QR_TOKEN,
+    env.WAHA_DASHBOARD_ACCESS_PASSWORD,
     );
     if (!qrAuthenticated) {
       return jsonResponse(404, 'not_found');
@@ -74,6 +95,14 @@ export async function handleRequest(
   }
 
   const containerRequest = buildContainerRequest(request, env.WAHA_API_KEY);
+  if (decision.kind === 'dashboard') {
+    containerRequest.headers.set(
+      'authorization',
+      'Basic ' + btoa(
+        'disabled:' + env.WAHA_DISABLED_DASHBOARD_PASSWORD,
+      ),
+    );
+  }
   try {
     const response = await forwarder(containerRequest);
     return secureResponse(response, decision.kind);
@@ -94,7 +123,7 @@ export function buildContainerEnvironment(
     WAHA_API_DOWNLOAD_MEDIA: 'False',
     WAHA_BASE_URL: env.WAHA_PUBLIC_BASE_URL,
     WAHA_API_KEY: env.WAHA_API_KEY,
-    WAHA_DASHBOARD_ENABLED: 'False',
+    WAHA_DASHBOARD_ENABLED: env.WAHA_DASHBOARD_PREVIEW_ENABLED === 'true' ? 'True' : 'False',
     WAHA_DASHBOARD_PASSWORD: env.WAHA_DISABLED_DASHBOARD_PASSWORD,
     WAHA_DASHBOARD_USERNAME: 'disabled',
     WAHA_DEBUG_MODE: 'False',
@@ -151,6 +180,12 @@ function isValidRuntimeConfig(env: GatewayEnv): boolean {
     return false;
   }
   if (!/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(env.WAHA_CONFIG_REVISION)) {
+    return false;
+  }
+  if (env.WAHA_DASHBOARD_PREVIEW_ENABLED !== 'true' && env.WAHA_DASHBOARD_PREVIEW_ENABLED !== 'false') {
+    return false;
+  }
+  if (!/^[a-z][a-z0-9_-]{2,31}$/i.test(env.WAHA_DASHBOARD_ACCESS_USERNAME)) {
     return false;
   }
   if (env.WAHA_QR_ENABLED !== 'true' && env.WAHA_QR_ENABLED !== 'false') {
