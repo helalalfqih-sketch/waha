@@ -87,7 +87,6 @@ export async function handleRequest(
     const qrAuthenticated = await secureTokenEqual(
       getQrToken(request),
       env.WAHA_QR_TOKEN,
-    env.WAHA_DASHBOARD_ACCESS_PASSWORD,
     );
     if (!qrAuthenticated) {
       return jsonResponse(404, 'not_found');
