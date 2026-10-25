@@ -1,6 +1,7 @@
 import { populateSessionInfo } from '@waha/core/abc/manager.abc';
 import { SessionPlugin } from '@waha/core/abc/session.plugin';
 import { WebhookSender } from '@waha/modules/waha-webhook/WebhookPlugin.sender';
+import { webhookUrlForLog } from '@waha/modules/waha-webhook/WebhookUrlPolicy';
 import { WAHAEvents, WAHAEventsWild } from '@waha/structures/enums.dto';
 import { WebhookConfig } from '@waha/structures/webhooks.config.dto';
 import { EventWildUnmask } from '@waha/utils/events';
@@ -49,7 +50,8 @@ export class WebhookPlugin extends SessionPlugin<WebhookPluginConfig> {
     }
 
     const url = webhook.url;
-    this.logger.info(`Configuring webhooks for ${url}...`);
+    const urlForLog = webhookUrlForLog(url);
+    this.logger.info(`Configuring webhooks for ${urlForLog}...`);
     const events = this.getSuitableEvents(webhook.events);
     const sender = new WebhookSender(this.logger, webhook);
     for (const event of events) {
@@ -60,8 +62,8 @@ export class WebhookPlugin extends SessionPlugin<WebhookPluginConfig> {
           sender.send(data);
         });
       });
-      this.logger.debug(`Event '${event}' is enabled for url: ${url}`);
+      this.logger.debug(`Event '${event}' is enabled for url: ${urlForLog}`);
     }
-    this.logger.info(`Webhooks were configured for ${url}.`);
+    this.logger.info(`Webhooks were configured for ${urlForLog}.`);
   }
 }
