@@ -36,11 +36,14 @@
   "vars": {
     "WAHA_CONFIG_REVISION": "gows-postgresql-v1",
     "WAHA_PUBLIC_BASE_URL": "https://indexes-waha.helalalfqih.workers.dev",
-    "WAHA_QR_ENABLED": "false"
+    "WAHA_QR_ENABLED": "false",
+    "WAHA_DASHBOARD_PREVIEW_ENABLED": "false",
+    "WAHA_DASHBOARD_ACCESS_USERNAME": "previewadmin"
   },
   "secrets": {
     "required": [
       "ADMIN_TOKEN",
+      "WAHA_DASHBOARD_ACCESS_PASSWORD",
       "WAHA_API_KEY",
       "WAHA_DISABLED_DASHBOARD_PASSWORD",
       "WAHA_DISABLED_SWAGGER_PASSWORD",
