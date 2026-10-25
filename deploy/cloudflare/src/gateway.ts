@@ -71,7 +71,7 @@ export async function handleRequest(
       env.WAHA_DASHBOARD_ACCESS_USERNAME + ':' + env.WAHA_DASHBOARD_ACCESS_PASSWORD,
     );
     const allowed = await secureTokenEqual(
-      request.headers.get('authorization'), expected,
+      request.headers.get('authorization') ?? undefined, expected,
     );
     if (!allowed) {
       return jsonResponse(401, 'unauthorized', {
