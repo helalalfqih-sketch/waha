@@ -102,6 +102,68 @@ describe('gateway policy', () => {
     expect(forwarder).not.toHaveBeenCalled();
   });
 
+  it('keeps Dashboard disabled without waking the Container', async () => {
+    const forwarder = vi.fn<ContainerForwarder>();
+    const response = await handleRequest(
+      new Request('https://example.test/dashboard'),
+      createEnv(),
+      forwarder,
+    );
+    expect(response.status).toBe(404);
+    expect(forwarder).not.toHaveBeenCalled();
+  });
+
+  it('challenges unauthenticated Dashboard requests when enabled', async () => {
+    const forwarder = vi.fn<ContainerForwarder>();
+    const response = await handleRequest(
+      new Request('https://example.test/dashboard'),
+      createEnv({ WAHA_DASHBOARD_PREVIEW_ENABLED: 'true' }),
+      forwarder,
+    );
+    expect(response.status).toBe(401);
+    expect(response.headers.get('www-authenticate')).toContain('Basic');
+    expect(forwarder).not.toHaveBeenCalled();
+  });
+
+  it('proxies authenticated Dashboard without leaking browser credentials', async () => {
+    const forwarder = vi.fn<ContainerForwarder>(async (request) => {
+      expect(request.headers.get('authorization')).toBe(
+        'Basic ' + btoa('disabled:' + DASHBOARD_PASSWORD),
+      );
+      expect(request.headers.get('x-api-key')).toBe(WAHA_API_KEY);
+      return new Response('dashboard');
+    });
+    const response = await handleRequest(
+      new Request('https://example.test/dashboard', {
+        headers: {
+          authorization: 'Basic ' + btoa('previewadmin:' + 'p'.repeat(48)),
+        },
+      }),
+      createEnv({ WAHA_DASHBOARD_PREVIEW_ENABLED: 'true' }),
+      forwarder,
+    );
+    expect(response.status).toBe(200);
+    expect(forwarder).toHaveBeenCalledOnce();
+  });
+
+  it('rejects wrong Dashboard credentials before reaching the Container', async () => {
+    const forwarder = vi.fn<ContainerForwarder>();
+    const response = await handleRequest(
+      new Request('https://example.test/dashboard', {
+        headers: { authorization: 'Basic ' + btoa('previewadmin:wrong') },
+      }),
+      createEnv({ WAHA_DASHBOARD_PREVIEW_ENABLED: 'true' }),
+      forwarder,
+    );
+    expect(response.status).toBe(401);
+    expect(forwarder).not.toHaveBeenCalled();
+  });
+
+  it('sets upstream Dashboard enabled only for preview mode', () => {
+    expect(buildContainerEnvironment(createEnv()).WAHA_DASHBOARD_ENABLED).toBe('False');
+    expect(buildContainerEnvironment(createEnv({ WAHA_DASHBOARD_PREVIEW_ENABLED: 'true' })).WAHA_DASHBOARD_ENABLED).toBe('True');
+  });
+
   it('rejects credentials in the query string', async () => {
     const forwarder = vi.fn<ContainerForwarder>();
     const response = await handleRequest(
