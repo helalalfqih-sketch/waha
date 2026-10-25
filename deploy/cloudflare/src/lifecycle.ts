@@ -72,6 +72,7 @@ export async function computeRuntimeFingerprint(
   );
   const material = [
     env.WAHA_CONFIG_REVISION,
+    env.WAHA_DASHBOARD_PREVIEW_ENABLED,
     env.WAHA_DISABLED_DASHBOARD_PASSWORD,
     env.WAHA_DISABLED_SWAGGER_PASSWORD,
     env.WAHA_PUBLIC_BASE_URL,
