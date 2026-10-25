@@ -1,0 +1,29 @@
+name: Cloudflare WAHA checks
+on:
+  pull_request:
+    paths:
+      - 'deploy/cloudflare/**'
+      - '.github/workflows/cloudflare-containers-ci.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: deploy/cloudflare
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: deploy/cloudflare/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run test:lifecycle
+      - run: npm run typecheck
+      - run: npm run cf:types
+      - run: npm audit --audit-level=high
+      - run: git diff --check
