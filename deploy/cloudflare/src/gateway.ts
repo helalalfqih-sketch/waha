@@ -53,7 +53,7 @@ export async function handleRequest(
     return jsonResponse(503, 'service_unavailable');
   }
 
-  const authenticated = await secureTokenEqual(
+  const authenticated = decision.kind === 'dashboard' || await secureTokenEqual(
     getBearerToken(request),
     env.ADMIN_TOKEN,
   );
