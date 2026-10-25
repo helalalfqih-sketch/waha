@@ -46,7 +46,6 @@ const BLOCKED_EXACT_PATHS = new Set([
 
 const BLOCKED_PATH_PREFIXES = [
   '/api/server/debug',
-  '/dashboard',
   '/jobs',
   '/mcp',
   '/metrics',
@@ -61,7 +60,7 @@ const CREDENTIAL_QUERY_KEYS = new Set([
   'x-api-key',
 ]);
 
-export type RouteKind = 'api' | 'health' | 'liveness' | 'qr' | 'readiness';
+export type RouteKind = 'api' | 'dashboard' | 'health' | 'liveness' | 'qr' | 'readiness';
 
 export interface RouteDecision {
   kind?: RouteKind;
@@ -121,6 +120,10 @@ export function classifyRequest(request: Request): RouteDecision {
     )
   ) {
     return { status: 'not-found' };
+  }
+
+  if (lowerPath === '/dashboard' || lowerPath.startsWith('/dashboard/')) {
+    return { kind: 'dashboard', status: 'allow' };
   }
 
   if (/^\/api\/[^/]+\/auth\/qr(?:\/|$)/i.test(path)) {
