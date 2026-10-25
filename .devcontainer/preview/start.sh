@@ -2,6 +2,8 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 : "${CODESPACE_NAME:?Run inside the intended GitHub Codespace}"
+: "${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:?Missing Codespaces forwarding domain}"
+export WAHA_PREVIEW_BASE_URL="https://${CODESPACE_NAME}-3000.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}"
 if [[ "${WAHA_TEST_NUMBER_ONLY:-}" != "yes" ]]; then
   echo 'Confirm test-number-only use: WAHA_TEST_NUMBER_ONLY=yes bash .devcontainer/preview/start.sh'
   exit 1

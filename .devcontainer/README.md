@@ -1,5 +1,7 @@
 # WAHA original Dashboard in a private Codespace
 
+The development container uses Ubuntu 24.04 explicitly to avoid changes in the floating Ubuntu tag breaking Docker installation. Both session restart flags are disabled. The start script sets WAHA_BASE_URL to this Codespace's HTTPS forwarded origin for media links; standalone CI uses localhost.
+
 This configuration runs the official **WAHA Core Docker image**, including its original Dashboard at /dashboard. It does not build this branch's source or use the Cloudflare preview. Core supports the default session. No Plus credentials are required.
 
 ## Start
