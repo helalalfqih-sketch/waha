@@ -120,6 +120,26 @@ timeout is six hours. This reduces downtime but does not guarantee
 uninterrupted WhatsApp delivery. Cloudflare can stop a Container for a host
 restart or rollout, and missed webhook delivery is not guaranteed.
 
+## Dashboard preview proposal (not deployed)
+
+The upstream WAHA Dashboard is present in the pinned image, but the deployed
+gateway deliberately blocks it. This branch adds an opt-in
+`WAHA_DASHBOARD_PREVIEW_ENABLED` flag (default `false`), a separate
+`WAHA_DASHBOARD_ACCESS_USERNAME` and
+`WAHA_DASHBOARD_ACCESS_PASSWORD` browser Basic-auth challenge on
+`/dashboard/**`, and distinct upstream Dashboard credentials. The preview
+password must be staged as a secret, never placed in `vars` or the repository.
+
+**Not yet verified:** WAHA Dashboard asset paths, browser navigation, cookies,
+WebSockets and the complete login flow behind the gateway. The gateway still
+strips cookies and denies unrelated root paths. Therefore this change is a
+security-gated prototype, **not proof of a working complete Dashboard**.
+Do not turn on the flag or deploy until an isolated preview validates the
+actual WAHA routes/assets and Cloudflare Access protection. Browser Basic auth
+is defense in depth, not a replacement for Cloudflare Access. Enabling the flag
+changes the Container runtime fingerprint and may restart a running instance.
+The production flag remains `false`.
+
 ## Local validation
 
 Docker is required only for a full `wrangler dev` Container test.
