@@ -168,6 +168,7 @@ function isValidRuntimeConfig(env: GatewayEnv): boolean {
     env.WAHA_DISABLED_DASHBOARD_PASSWORD,
     env.WAHA_DISABLED_SWAGGER_PASSWORD,
     env.WAHA_QR_TOKEN,
+    env.WAHA_DASHBOARD_ACCESS_PASSWORD,
   ];
   if (!credentials.every((value) => isUsableToken(value))) {
     return false;
