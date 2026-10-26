@@ -119,13 +119,22 @@ export function filterConnectedSessionsResult(payload) {
       continue;
     }
     try {
-      const sessions = JSON.parse(item.text);
+      const document = JSON.parse(item.text);
+      const sessions = Array.isArray(document)
+        ? document
+        : JSON.parse(document.response);
       if (!Array.isArray(sessions)) {
         continue;
       }
-      item.text = JSON.stringify(
-        sessions.filter((session) => session?.status === 'WORKING'),
+      const connectedSessions = sessions.filter(
+        (session) => session?.status === 'WORKING',
       );
+      if (Array.isArray(document)) {
+        item.text = JSON.stringify(connectedSessions);
+      } else {
+        document.response = JSON.stringify(connectedSessions);
+        item.text = JSON.stringify(document);
+      }
     } catch {
       continue;
     }

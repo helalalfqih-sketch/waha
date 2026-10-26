@@ -105,16 +105,20 @@ test('filters the sessions-list response to connected sessions', () => {
       content: [
         {
           type: 'text',
-          text: JSON.stringify([
-            { name: 'default', status: 'WORKING' },
-            { name: 'offline', status: 'STOPPED' },
-          ]),
+          text: JSON.stringify({
+            status: 200,
+            response: JSON.stringify([
+              { name: 'default', status: 'WORKING' },
+              { name: 'offline', status: 'STOPPED' },
+            ]),
+          }),
         },
       ],
     },
   };
   filterConnectedSessionsResult(payload);
-  assert.deepEqual(JSON.parse(payload.result.content[0].text), [
+  const document = JSON.parse(payload.result.content[0].text);
+  assert.deepEqual(JSON.parse(document.response), [
     { name: 'default', status: 'WORKING' },
   ]);
 });
