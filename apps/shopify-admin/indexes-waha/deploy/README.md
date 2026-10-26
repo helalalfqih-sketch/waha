@@ -8,9 +8,8 @@ reaches WAHA over the private Docker network.
 1. Copy `production.env.example` to `.env.production` on the server and set
    restrictive file permissions. Never commit it.
 2. Set `APP_DOMAIN` and `SHOPIFY_APP_URL` to the same HTTPS origin. The checked-in
-   example uses `shopify.185-197-31-233.sslip.io` for the approved VPS. This is a
-   temporary wildcard-DNS hostname and should later be replaced with a domain
-   owned by the operator.
+   example uses the operator-owned `waha.indexesstore.com` subdomain for the
+   approved VPS. Keep the store apex and other subdomains unchanged.
 3. Pin `CADDY_IMAGE` and `WAHA_IMAGE` to reviewed version tags or digests. Do
    not use `latest`; choose the WAHA image that matches the VPS CPU architecture.
 4. Use a new `WAHA_API_KEY` and the Shopify app credentials. Do not reuse any

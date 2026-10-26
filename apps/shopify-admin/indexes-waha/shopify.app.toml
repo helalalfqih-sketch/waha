@@ -2,7 +2,7 @@
 
 client_id = "62e6e4cc7b38a2bf6c8a430a9679cc20"
 name = "indexes-waha"
-application_url = "https://shopify.185-197-31-233.sslip.io"
+application_url = "https://waha.indexesstore.com"
 embedded = true
 
 [access_scopes]
@@ -25,7 +25,7 @@ api_version = "2026-10"
   compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
 
 [auth]
-redirect_urls = [ "https://shopify.185-197-31-233.sslip.io/auth/callback" ]
+redirect_urls = [ "https://waha.indexesstore.com/auth/callback" ]
 
 [build]
 include_config_on_deploy = true
