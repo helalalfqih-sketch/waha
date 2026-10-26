@@ -2,7 +2,7 @@
 
 client_id = "62e6e4cc7b38a2bf6c8a430a9679cc20"
 name = "indexes-waha"
-application_url = "https://shopify.dev/apps/default-app-home"
+application_url = "https://shopify.185-197-31-233.sslip.io"
 embedded = true
 
 [access_scopes]
@@ -10,7 +10,7 @@ embedded = true
 scopes = "write_products,write_publications"
 
 [webhooks]
-api_version = "2027-01"
+api_version = "2026-10"
 
   [[webhooks.subscriptions]]
   uri = "/webhooks/app/uninstalled"
@@ -25,8 +25,8 @@ api_version = "2027-01"
   compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
 
 [auth]
-redirect_urls = [ "https://shopify.dev/apps/default-app-home/api/auth" ]
+redirect_urls = [ "https://shopify.185-197-31-233.sslip.io/auth/callback" ]
 
 [build]
 include_config_on_deploy = true
-automatically_update_urls_on_dev = true
+automatically_update_urls_on_dev = false

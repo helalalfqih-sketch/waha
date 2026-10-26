@@ -7,7 +7,10 @@ reaches WAHA over the private Docker network.
 
 1. Copy `production.env.example` to `.env.production` on the server and set
    restrictive file permissions. Never commit it.
-2. Set `APP_DOMAIN` and `SHOPIFY_APP_URL` to the same permanent HTTPS origin.
+2. Set `APP_DOMAIN` and `SHOPIFY_APP_URL` to the same HTTPS origin. The checked-in
+   example uses `shopify.185-197-31-233.sslip.io` for the approved VPS. This is a
+   temporary wildcard-DNS hostname and should later be replaced with a domain
+   owned by the operator.
 3. Pin `CADDY_IMAGE` and `WAHA_IMAGE` to reviewed version tags or digests. Do
    not use `latest`; choose the WAHA image that matches the VPS CPU architecture.
 4. Use a new `WAHA_API_KEY` and the Shopify app credentials. Do not reuse any
@@ -21,6 +24,10 @@ reaches WAHA over the private Docker network.
 6. After the permanent URL is approved, update `shopify.app.toml`, deploy that
    Shopify configuration, and install the custom-distribution app on the single
    allowed store.
+
+The production WAHA container restarts the saved session after a container or
+worker restart, with a short startup delay. The operator still performs the
+initial WhatsApp QR scan manually from the embedded Shopify app.
 
 The named volumes retain Shopify sessions, WAHA sessions, media, and Caddy TLS
 state across container restarts. Back up the WAHA and Shopify volumes before

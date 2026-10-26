@@ -50,6 +50,9 @@ services:
       WHATSAPP_SWAGGER_ENABLED: "False"
       WAHA_PRINT_QR: "False"
       WHATSAPP_DEFAULT_ENGINE: "${WHATSAPP_DEFAULT_ENGINE:-WEBJS}"
+      WHATSAPP_RESTART_ALL_SESSIONS: "True"
+      WAHA_WORKER_RESTART_SESSIONS: "True"
+      WAHA_AUTO_START_DELAY_SECONDS: "5"
     volumes:
       - waha_sessions:/app/.sessions
       - waha_media:/app/.media
