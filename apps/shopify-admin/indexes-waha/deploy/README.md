@@ -1,9 +1,10 @@
 # Production deployment blueprint
 
-This folder is an inert example until a VPS, domain, pinned container images,
+This folder is an inert example until a VPS, domains, pinned container images,
 and independent secrets are approved. It exposes only Caddy on ports 80/443.
-The WAHA API and dashboard are not published to the internet; the Shopify app
-reaches WAHA over the private Docker network.
+The Shopify app reaches WAHA over the private Docker network. The optional
+operator dashboard uses a separate HTTPS hostname and two authentication
+layers; port 3000 remains private.
 
 1. Copy `production.env.example` to `.env.production` on the server and set
    restrictive file permissions. Never commit it.
@@ -14,15 +15,25 @@ reaches WAHA over the private Docker network.
    not use `latest`; choose the WAHA image that matches the VPS CPU architecture.
 4. Use a new `WAHA_API_KEY` and the Shopify app credentials. Do not reuse any
    Cloudflare, Whapi, Shopify-store, or existing WAHA credential.
-5. Validate before starting:
+5. Set `DASHBOARD_DOMAIN` to an operator-only hostname. Generate a separate,
+   strong `DASHBOARD_PASSWORD`, then put its Caddy-compatible hash in
+   `DASHBOARD_PASSWORD_HASH`, wrapped in single quotes so Compose preserves the
+   hash's `$` characters. The same dashboard username and password satisfy
+   both the outer Caddy gate and WAHA's dashboard login, while API calls still
+   require the independent `WAHA_API_KEY`.
+6. Validate before starting:
 
    ```sh
    docker compose --env-file .env.production -f compose.production.yml config
    ```
 
-6. After the permanent URL is approved, update `shopify.app.toml`, deploy that
+7. After the permanent URL is approved, update `shopify.app.toml`, deploy that
    Shopify configuration, and install the custom-distribution app on the single
    allowed store.
+
+The dashboard proxy permits only `/dashboard`, `/api`, `/health`, and `/ws`
+routes needed by the UI. Swagger and every other WAHA route remain unavailable
+through the dashboard hostname. Never publish the WAHA container port directly.
 
 The production WAHA container restarts the saved session after a container or
 worker restart, with a short startup delay. The operator still performs the

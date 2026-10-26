@@ -1,4 +1,23 @@
 {$APP_DOMAIN} {
-  encode zstd gzip
-  reverse_proxy shopify-app:3000
+	encode zstd gzip
+	reverse_proxy shopify-app:3000
+}
+
+{$DASHBOARD_DOMAIN} {
+	encode zstd gzip
+
+	basic_auth {
+		{$DASHBOARD_USERNAME} {$DASHBOARD_PASSWORD_HASH}
+	}
+
+	redir / /dashboard/ 302
+
+	@wahaDashboard {
+		path /dashboard /dashboard/* /api /api/* /health /health/* /ws /ws/*
+	}
+	handle @wahaDashboard {
+		reverse_proxy waha:3000
+	}
+
+	respond 404
 }

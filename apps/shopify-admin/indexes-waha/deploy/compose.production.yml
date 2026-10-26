@@ -8,12 +8,16 @@ services:
       - "443:443/udp"
     environment:
       APP_DOMAIN: "${APP_DOMAIN:?Set the public app domain}"
+      DASHBOARD_DOMAIN: "${DASHBOARD_DOMAIN:?Set the private dashboard domain}"
+      DASHBOARD_USERNAME: "${DASHBOARD_USERNAME:?Set the dashboard username}"
+      DASHBOARD_PASSWORD_HASH: "${DASHBOARD_PASSWORD_HASH:?Set the dashboard password hash}"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
       - shopify-app
+      - waha
 
   shopify-app:
     build:
@@ -46,7 +50,11 @@ services:
       - "3000"
     environment:
       WAHA_API_KEY: "${WAHA_API_KEY:?Set an independent WAHA API key}"
-      WAHA_DASHBOARD_ENABLED: "False"
+      WAHA_BASE_URL: "https://${DASHBOARD_DOMAIN:?Set the private dashboard domain}"
+      WAHA_PUBLIC_URL: "https://${DASHBOARD_DOMAIN:?Set the private dashboard domain}"
+      WAHA_DASHBOARD_ENABLED: "True"
+      WAHA_DASHBOARD_USERNAME: "${DASHBOARD_USERNAME:?Set the dashboard username}"
+      WAHA_DASHBOARD_PASSWORD: "${DASHBOARD_PASSWORD:?Set the dashboard password}"
       WHATSAPP_SWAGGER_ENABLED: "False"
       WAHA_PRINT_QR: "False"
       WHATSAPP_DEFAULT_ENGINE: "${WHATSAPP_DEFAULT_ENGINE:-WEBJS}"

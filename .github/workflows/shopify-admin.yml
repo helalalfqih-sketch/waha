@@ -35,6 +35,10 @@ jobs:
           CADDY_IMAGE: caddy:validation
           WAHA_IMAGE: devlikeapro/waha:validation
           APP_DOMAIN: app.example.com
+          DASHBOARD_DOMAIN: dashboard.example.com
+          DASHBOARD_USERNAME: validation-admin
+          DASHBOARD_PASSWORD: validation-dashboard-password
+          DASHBOARD_PASSWORD_HASH: validation-dashboard-password-hash
           SHOPIFY_APP_URL: https://app.example.com
           SHOPIFY_API_KEY: validation-client-id
           SHOPIFY_API_SECRET: validation-client-secret
