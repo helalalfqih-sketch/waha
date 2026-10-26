@@ -5,7 +5,8 @@ import { authenticate } from "../shopify.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   await authenticate.admin(request);
-  return redirect("/app/devices");
+  const { search } = new URL(request.url);
+  return redirect(`/app/devices${search}`);
 };
 
 export default function AppIndex() {
