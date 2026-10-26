@@ -46,25 +46,32 @@ does not link a phone automatically.
 
 ## Private ChatGPT access
 
-The `tunnel-client` service gives ChatGPT outbound-only access to WAHA's MCP
-endpoint through an OpenAI Secure MCP Tunnel. It does not publish `/mcp`, the
-tunnel health port, or the WAHA container port on the VPS.
+The `tunnel-client` service gives ChatGPT outbound-only access to a restricted
+gateway in front of WAHA's MCP endpoint through an OpenAI Secure MCP Tunnel. It
+does not publish `/mcp`, either health port, or the WAHA container port on the
+VPS.
 
 1. Pin `TUNNEL_CLIENT_IMAGE` to the reviewed platform-specific image digest and
    set `OPENAI_TUNNEL_ID` in `.env.production`.
 2. Create `deploy/.secrets/openai-runtime-api-key` containing only the restricted
    OpenAI runtime key with Tunnels Read + Use permissions.
-3. Create `deploy/.secrets/waha-mcp-api-key` containing only a session-scoped
-   WAHA MCP app key. Prefer only `read` and `send`; keep session control,
-   settings, app administration, and deletion disabled.
+3. Create `deploy/.secrets/waha-admin-api-key` containing the WAHA admin key,
+   owned by UID/GID `1000:1000`. The key is mounted only into the restricted
+   gateway; the tunnel client and ChatGPT never receive it.
 4. Set the directory to mode `700` and both files to mode `600`. The `.secrets`
    directory is ignored by the repository and must never be committed.
 5. Validate configuration, run the tunnel client's `doctor --explain` check,
    start the service, and require `/readyz` to return HTTP 200 before creating
    the ChatGPT connector.
 
-The OpenAI runtime key and WAHA MCP key have separate scopes and lifecycles.
-Rotating either key does not require relinking the WhatsApp device.
+The gateway exposes only tools annotated read-only from the approved WhatsApp
+domains. It explicitly excludes API-key, app-management, authentication,
+arbitrary-API, environment, session-control, settings, and deletion tools.
+Read operations accept any session currently in `WORKING` state, so newly
+connected numbers become readable without granting broader control. Message
+sending remains available only for `WAHA_MCP_SEND_SESSION`, which defaults to
+`indexs`. The OpenAI runtime key and WAHA admin key have separate lifecycles;
+rotating either key does not require relinking a WhatsApp device.
 
 WAHA's current FAQ recommends at least 2 CPU and 4 GB RAM even for one session.
 Its planning table estimates that ten WEBJS sessions need roughly 3 CPU/2.5 GB,

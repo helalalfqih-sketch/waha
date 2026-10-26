@@ -81,15 +81,13 @@ services:
     command:
       - "--control-plane.tunnel-id=${OPENAI_TUNNEL_ID:?Set the OpenAI secure tunnel ID}"
       - "--control-plane.api-key=file:/run/secrets/openai-runtime-api-key"
-      - "--mcp.server-url=url=http://waha:3000/mcp,channel=main"
-      - "--mcp.extra-headers=X-Api-Key: file:/run/secrets/waha-mcp-api-key"
+      - "--mcp.server-url=url=http://mcp-gateway:3001/mcp,channel=main"
       - "--health.listen-addr=:8080"
       - "--log.format=json"
     volumes:
       - ./.secrets/openai-runtime-api-key:/run/secrets/openai-runtime-api-key:ro
-      - ./.secrets/waha-mcp-api-key:/run/secrets/waha-mcp-api-key:ro
     depends_on:
-      - waha
+      - mcp-gateway
     healthcheck:
       test:
         - CMD
@@ -101,6 +99,45 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
+
+  mcp-gateway:
+    image: "${WAHA_IMAGE:?Set a pinned WAHA Core image tag or digest}"
+    restart: unless-stopped
+    init: true
+    read_only: true
+    user: "1000:1000"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=16m
+    entrypoint:
+      - node
+    command:
+      - /opt/mcp-gateway/server.mjs
+    environment:
+      MCP_GATEWAY_PORT: "3001"
+      WAHA_BASE_URL: "http://waha:3000"
+      WAHA_SEND_SESSION: "${WAHA_MCP_SEND_SESSION:-indexs}"
+      WAHA_ADMIN_KEY_FILE: "/run/secrets/waha-admin-api-key"
+    volumes:
+      - ./mcp-gateway:/opt/mcp-gateway:ro
+      - ./.secrets/waha-admin-api-key:/run/secrets/waha-admin-api-key:ro
+    depends_on:
+      - waha
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3001/readyz').then((response) => { if (!response.ok) process.exit(1); }).catch(() => process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    mem_limit: 128m
+    pids_limit: 64
 
 volumes:
   caddy_data:

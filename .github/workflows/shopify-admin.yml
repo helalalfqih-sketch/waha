@@ -30,6 +30,8 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run build
+      - name: Test restricted multi-session MCP gateway
+        run: node --test deploy/mcp-gateway/policy.test.mjs
       - name: Validate production Compose blueprint
         env:
           CADDY_IMAGE: caddy:validation
@@ -46,4 +48,5 @@ jobs:
           SHOPIFY_API_SECRET: validation-client-secret
           SHOPIFY_ALLOWED_SHOP: validation.myshopify.com
           WAHA_API_KEY: validation-waha-key
+          WAHA_MCP_SEND_SESSION: indexs
         run: docker compose -f deploy/compose.production.yml config --quiet
