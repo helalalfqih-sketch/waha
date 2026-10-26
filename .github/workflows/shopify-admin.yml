@@ -34,6 +34,8 @@ jobs:
         env:
           CADDY_IMAGE: caddy:validation
           WAHA_IMAGE: devlikeapro/waha:validation
+          TUNNEL_CLIENT_IMAGE: ghcr.io/openai/tunnel-client:validation
+          OPENAI_TUNNEL_ID: tunnel_0123456789abcdef0123456789abcdef
           APP_DOMAIN: app.example.com
           DASHBOARD_DOMAIN: dashboard.example.com
           DASHBOARD_USERNAME: validation-admin

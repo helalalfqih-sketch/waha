@@ -44,6 +44,28 @@ state across container restarts. Back up the WAHA and Shopify volumes before
 server migration. The operator must scan the WhatsApp QR manually; this stack
 does not link a phone automatically.
 
+## Private ChatGPT access
+
+The `tunnel-client` service gives ChatGPT outbound-only access to WAHA's MCP
+endpoint through an OpenAI Secure MCP Tunnel. It does not publish `/mcp`, the
+tunnel health port, or the WAHA container port on the VPS.
+
+1. Pin `TUNNEL_CLIENT_IMAGE` to the reviewed platform-specific image digest and
+   set `OPENAI_TUNNEL_ID` in `.env.production`.
+2. Create `deploy/.secrets/openai-runtime-api-key` containing only the restricted
+   OpenAI runtime key with Tunnels Read + Use permissions.
+3. Create `deploy/.secrets/waha-mcp-api-key` containing only a session-scoped
+   WAHA MCP app key. Prefer only `read` and `send`; keep session control,
+   settings, app administration, and deletion disabled.
+4. Set the directory to mode `700` and both files to mode `600`. The `.secrets`
+   directory is ignored by the repository and must never be committed.
+5. Validate configuration, run the tunnel client's `doctor --explain` check,
+   start the service, and require `/readyz` to return HTTP 200 before creating
+   the ChatGPT connector.
+
+The OpenAI runtime key and WAHA MCP key have separate scopes and lifecycles.
+Rotating either key does not require relinking the WhatsApp device.
+
 WAHA's current FAQ recommends at least 2 CPU and 4 GB RAM even for one session.
 Its planning table estimates that ten WEBJS sessions need roughly 3 CPU/2.5 GB,
 while NOWEB and GOWS use fewer resources. This blueprint stays on the already

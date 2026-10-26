@@ -65,6 +65,43 @@ services:
       - waha_sessions:/app/.sessions
       - waha_media:/app/.media
 
+  tunnel-client:
+    image: "${TUNNEL_CLIENT_IMAGE:?Set a pinned OpenAI tunnel-client image digest}"
+    restart: unless-stopped
+    init: true
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=16m
+    expose:
+      - "8080"
+    command:
+      - "--control-plane.tunnel-id=${OPENAI_TUNNEL_ID:?Set the OpenAI secure tunnel ID}"
+      - "--control-plane.api-key=file:/run/secrets/openai-runtime-api-key"
+      - "--mcp.server-url=url=http://waha:3000/mcp,channel=main"
+      - "--mcp.extra-headers=X-Api-Key: file:/run/secrets/waha-mcp-api-key"
+      - "--health.listen-addr=:8080"
+      - "--log.format=json"
+    volumes:
+      - ./.secrets/openai-runtime-api-key:/run/secrets/openai-runtime-api-key:ro
+      - ./.secrets/waha-mcp-api-key:/run/secrets/waha-mcp-api-key:ro
+    depends_on:
+      - waha
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - --quiet
+        - --output-document=-
+        - http://127.0.0.1:8080/readyz
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
 volumes:
   caddy_data:
   caddy_config:
